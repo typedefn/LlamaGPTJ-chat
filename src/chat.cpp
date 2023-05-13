@@ -13,6 +13,7 @@
 //////////////////////////////////////////////////////////////////////////
 
 std::atomic<bool> stop_display{false}; 
+std::string model_filename("");
 
 void display_frames() {
     const char* frames[] = {".", ":", "'", ":"};
@@ -133,6 +134,29 @@ std::string get_input(ConsoleState& con_st, llmodel_model model, std::string& in
     if (input == "exit" || input == "quit") {       
         llmodel_free_model(model);
         exit(0);
+    } else if (input == "save") {
+      FILE *fp = fopen("dump_state.bin", "wb");
+      auto state_size = llmodel_get_state_size(model);
+      auto state_mem = new uint8_t[state_size];
+      llmodel_save_state_data(model, state_mem);
+      fwrite(state_mem, 1, state_size, fp);
+      fclose(fp);
+      delete[] state_mem; 
+    } else if (input == "load") {
+      llmodel_free_model(model);
+
+      llmodel_model model = llmodel_create_model(model_filename);
+      std::cout << "\r" << appname << ": loading " << model_filename  << std::endl;
+      //check if model is loaded
+      auto check_model = llmodel_loadModel(model, model_filename.c_str());
+
+      FILE *fp_read = fopen("dump_state.bin", "rb");
+      auto state_size = llmodel_get_state_size(model);
+      auto state_mem = new uint8_t[state_size];
+      fread(state_mem, 1, state_size, fp_read);
+      llmodel_restore_state_data(model, state_mem);
+      fclose(fp_read);
+      delete[] state_mem;
     }
 
     return input;
@@ -165,7 +189,6 @@ int main(int argc, char* argv[]) {
         std::filesystem::path p(params.model);
         params.model = p.make_preferred().string();
     #endif
- 
     std::string input = "";
     uint32_t magic;
    
@@ -202,7 +225,7 @@ int main(int argc, char* argv[]) {
 
     llmodel_model model = llmodel_create_model(params.model.c_str());
     std::cout << "\r" << appname << ": loading " << params.model.c_str()  << std::endl;
-    
+    model_filename = params.model; 
 
     //bring back stderr for now
     dup2(stderr_copy, fileno(stderr));
